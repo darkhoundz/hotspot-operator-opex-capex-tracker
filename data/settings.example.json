@@ -1,0 +1,11 @@
+{
+  "companyName": "Your Company Name",
+  "reportTitle": "Financial Overview",
+  "logoUrl": "",
+  "currency": "$",
+  "dateFormat": "monthly",
+  "wifiMachines": [
+    "Vendo Machine 1",
+    "Vendo Machine 2"
+  ]
+}

@@ -1,0 +1,64 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Security & Credentials
+.env
+*.key
+*.pem
+data/users.json
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Project specific
+server.log
+nohup.out
+security_report_*.json
+
+# Backup files
+*.bak
+*.backup
+*.tmp
+
+# Test files (optional - uncomment if you don't want to include tests)
+# test_*.py
+
+upload-github-sh
+SECURITY.md
+SECURITY_TEST_RESULT.md
+PRE_UPLOAD_CHECKLIST.md
+PASSWORD_CHANGE_FEATURE.md
+IMPLEMENTAION_SUMMARY.md
+GITHUB_UPLOAD.md

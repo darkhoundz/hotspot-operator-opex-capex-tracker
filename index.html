@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Financial Dashboard</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        slate: {
+                            850: '#151F32', // Custom deeper background
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style type="text/tailwindcss">
+        @layer components {
+            .menu-item {
+                @apply flex items-center gap-3 px-4 py-3 rounded-lg cursor-pointer transition-colors text-slate-400 hover:bg-slate-700 hover:text-white;
+            }
+            .menu-item.active {
+                @apply bg-blue-600 text-white shadow-lg shadow-blue-900/20;
+            }
+            .view {
+                @apply hidden flex-col gap-6;
+            }
+            .view.active {
+                @apply flex;
+            }
+            .card {
+                @apply bg-slate-800 p-4 sm:p-6 rounded-xl shadow-lg border border-slate-700/50 max-w-full overflow-hidden;
+            }
+            .btn {
+                @apply px-5 py-2.5 rounded-lg border-0 cursor-pointer font-medium text-center transition-opacity text-white flex items-center justify-center gap-2;
+            }
+            .btn-primary {
+                @apply bg-blue-600 hover:bg-blue-700;
+            }
+            .btn-secondary {
+                @apply bg-slate-700 hover:bg-slate-600 text-slate-200;
+            }
+            
+            /* Badges for JS generation */
+            .badge {
+                @apply px-2 py-1 rounded text-xs font-bold uppercase;
+            }
+            .badge.revenue { @apply bg-emerald-900/30 text-emerald-400 border border-emerald-900/50; }
+            .badge.opex { @apply bg-red-900/30 text-red-400 border border-red-900/50; }
+            .badge.capex { @apply bg-amber-900/30 text-amber-400 border border-amber-900/50; }
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-200 h-screen overflow-hidden font-sans antialiased selection:bg-blue-500 selection:text-white">
+    <div class="flex h-full relative">
+        
+        <!-- Mobile Sidebar Overlay -->
+        <div id="sidebar-overlay" class="fixed inset-0 bg-slate-950/80 z-40 hidden md:hidden transition-opacity" onclick="toggleSidebar()"></div>
+
+        <!-- Sidebar / Settings -->
+        <aside id="sidebar" class="absolute inset-y-0 left-0 z-50 w-64 transform -translate-x-full transition-transform duration-300 md:relative md:translate-x-0 bg-slate-950 text-slate-300 flex flex-col p-5 border-r border-slate-800 shadow-xl md:shadow-none h-full">
+            <div class="flex items-center justify-between mb-10 pl-2">
+                <div class="flex items-center gap-3">
+                    <img id="company-logo" src="" alt="" class="w-10 h-10 rounded-lg object-cover bg-slate-800" onerror="this.style.display='none'">
+                    <h2 id="company-name" class="font-bold text-lg tracking-tight text-white">Company</h2>
+                </div>
+                <!-- Close Button Mobile -->
+                <button class="md:hidden text-slate-400 hover:text-white" onclick="toggleSidebar()">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            
+            <nav class="flex-1 space-y-1">
+                <div class="menu-item active" data-tab="dashboard" onclick="toggleSidebar(false)">
+                    <i class="fas fa-chart-pie w-5"></i> Dashboard
+                </div>
+                <div class="menu-item" data-tab="entries" onclick="toggleSidebar(false)">
+                    <i class="fas fa-table w-5"></i> Entries
+                </div>
+                <div class="menu-item" data-tab="wifi-vendo" onclick="toggleSidebar(false)">
+                    <i class="fas fa-wifi w-5"></i> WiFi Vendo
+                </div>
+                <div class="menu-item" data-tab="settings" onclick="toggleSidebar(false)">
+                    <i class="fas fa-sliders w-5"></i> Settings
+                </div>
+            </nav>
+
+            <div class="flex flex-col gap-3 mt-auto pt-6 border-t border-slate-800">
+                <button id="download-data" class="btn btn-secondary w-full text-sm">
+                    <i class="fas fa-file-export"></i> Save Data
+                </button>
+                <label for="upload-data" class="btn btn-secondary w-full text-sm cursor-pointer">
+                    <i class="fas fa-file-import"></i> Load Data
+                </label>
+                <input type="file" id="upload-data" hidden accept=".json">
+                <button id="logout-btn" class="btn bg-red-600 hover:bg-red-700 w-full text-sm">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 p-4 md:p-8 overflow-y-auto bg-gradient-to-br from-slate-900 to-slate-850 w-full max-w-full overflow-x-hidden">
+            <header class="flex flex-col md:flex-row justify-between md:items-center mb-8 gap-4">
+                <div class="flex items-center gap-4">
+                    <!-- Hamburger Menu -->
+                    <button class="md:hidden text-slate-300 hover:text-white p-2 rounded-lg bg-slate-800 border border-slate-700" onclick="toggleSidebar()">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <div>
+                        <h1 id="report-title" class="text-2xl md:text-3xl font-bold text-white tracking-tight">Financial Overview</h1>
+                        <p class="text-slate-400 text-sm mt-1">Real-time profit & loss analysis</p>
+                    </div>
+                </div>
+                <div class="controls">
+                    <select id="time-period" class="bg-slate-800 text-slate-200 border border-slate-700 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        <option value="daily">Daily</option>
+                        <option value="monthly" selected>Monthly</option>
+                        <option value="quarterly">Quarterly</option>
+                        <option value="semi-annually">Semi-Annually</option>
+                        <option value="annually">Annually</option>
+                    </select>
+                </div>
+            </header>
+
+            <!-- Dashboard View -->
+            <div id="view-dashboard" class="view active">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div class="card border-l-4 border-l-emerald-500">
+                        <div class="text-slate-400 text-xs sm:text-sm font-medium mb-2 uppercase tracking-wider">Total Revenue</div>
+                        <div class="text-xl sm:text-2xl md:text-3xl font-bold text-emerald-400 break-all" id="display-revenue">/usr/bin/bash.00</div>
+                    </div>
+                    <div class="card border-l-4 border-l-red-500">
+                        <div class="text-slate-400 text-xs sm:text-sm font-medium mb-2 uppercase tracking-wider">Total OPEX</div>
+                        <div class="text-xl sm:text-2xl md:text-3xl font-bold text-red-400 break-all" id="display-opex">/usr/bin/bash.00</div>
+                    </div>
+                    <div class="card border-l-4 border-l-amber-500">
+                        <div class="text-slate-400 text-xs sm:text-sm font-medium mb-2 uppercase tracking-wider">Total CAPEX</div>
+                        <div class="text-xl sm:text-2xl md:text-3xl font-bold text-amber-400 break-all" id="display-capex">/usr/bin/bash.00</div>
+                    </div>
+                    <div class="card border-l-4 border-l-blue-500 bg-slate-800/80 backdrop-blur">
+                        <div class="text-slate-400 text-xs sm:text-sm font-medium mb-2 uppercase tracking-wider">Net Profit</div>
+                        <div class="text-xl sm:text-2xl md:text-3xl font-bold text-blue-400 break-all" id="display-profit">/usr/bin/bash.00</div>
+                    </div>
+                </div>
+
+                <!-- Charts Grid: 2 Columns -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+                    <div class="card">
+                        <h3 class="text-base sm:text-lg font-semibold text-slate-300 mb-4">Financial Overview</h3>
+                        <div style="height: 300px; position: relative;">
+                            <canvas id="financial-chart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <h3 class="text-base sm:text-lg font-semibold text-slate-300 mb-4">12-Month Net Profit Trend</h3>
+                        <div style="height: 300px; position: relative;">
+                            <canvas id="trend-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Entries View -->
+            <div id="view-entries" class="view max-w-full">
+                <div class="grid lg:grid-cols-3 gap-4 sm:gap-6 max-w-full">
+                    <div class="lg:col-span-1 min-w-0">
+                        <div class="card sticky top-6 max-w-full">
+                            <h3 class="text-lg sm:text-xl font-semibold text-white mb-6 flex items-center gap-2">
+                                <span class="bg-blue-600 w-1 h-6 rounded-full inline-block"></span>
+                                Add Entry
+                            </h3>
+                            <form id="entry-form" class="space-y-3 sm:space-y-4 max-w-full">
+                                <div class="form-group space-y-2">
+                                    <label class="text-xs sm:text-sm text-slate-400">Transaction Type</label>
+                                    <div class="relative">
+                                        <select id="entry-type" class="w-full max-w-full bg-slate-900 border border-slate-700 rounded-lg p-2 sm:p-3 text-sm sm:text-base text-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none appearance-none">
+                                            <option value="revenue">Revenue (Income)</option>
+                                            <option value="opex">OPEX (Expense)</option>
+                                            <option value="capex">CAPEX (Capital)</option>
+                                        </select>
+                                        <i class="fas fa-chevron-down absolute right-3 top-3 sm:top-4 text-slate-500 pointer-events-none text-xs"></i>
+                                    </div>
+                                </div>
+                                <div class="form-group space-y-2">
+                                    <label class="text-xs sm:text-sm text-slate-400">Description</label>
+                                    <input type="text" id="entry-name" required placeholder="e.g. Office Rent or Client Payment" class="w-full max-w-full bg-slate-900 border border-slate-700 rounded-lg p-2 sm:p-3 text-sm sm:text-base text-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none placeholder-slate-600">
+                                </div>
+                                <div class="form-group space-y-2">
+                                    <label class="text-xs sm:text-sm text-slate-400">Date (Optional)</label>
+                                    <input type="date" id="entry-date" class="w-full max-w-full bg-slate-900 border border-slate-700 rounded-lg p-2 sm:p-3 text-sm sm:text-base text-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none">
+                                </div>
+                                <div class="form-group space-y-2">
+                                    <label class="text-xs sm:text-sm text-slate-400">Amount</label>
+                                    <input type="number" id="entry-amount" required min="0" step="0.01" placeholder="0.00" class="w-full max-w-full bg-slate-900 border border-slate-700 rounded-lg p-2 sm:p-3 text-sm sm:text-base text-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none placeholder-slate-600">
+                                </div>
+                                <div class="form-group space-y-2" id="frequency-group">
+                                    <label class="text-xs sm:text-sm text-slate-400">Frequency</label>
+                                    <div class="relative">
+                                        <select id="entry-frequency" class="w-full max-w-full bg-slate-900 border border-slate-700 rounded-lg p-2 sm:p-3 text-sm sm:text-base text-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none appearance-none">
+                                            <option value="one-time">One Time</option>
+                                            <option value="daily">Daily</option>
+                                            <option value="monthly" selected>Monthly</option>
+                                            <option value="quarterly">Quarterly</option>
+                                            <option value="annually">Annually</option>
+                                        </select>
+                                        <i class="fas fa-chevron-down absolute right-3 top-3 sm:top-4 text-slate-500 pointer-events-none text-xs"></i>
+                                    </div>
+                                </div>
+                                <button type="submit" class="btn btn-primary w-full mt-4 hover:shadow-lg hover:shadow-blue-500/20 transition-all text-sm sm:text-base">
+                                    <i class="fas fa-plus"></i> Add Transaction
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <div class="lg:col-span-2 min-w-0 max-w-full">
+                        <div class="card min-h-full max-w-full">
+                            <h3 class="text-lg sm:text-xl font-semibold text-white mb-6 flex items-center gap-2">
+                                <span class="bg-indigo-500 w-1 h-6 rounded-full inline-block"></span>
+                                Recent Entries
+                            </h3>
+                            <div class="overflow-x-auto rounded-lg border border-slate-700/50 -mx-2 sm:mx-0">
+                                <table id="entries-table" class="w-full text-left border-collapse min-w-[600px]">
+                                    <thead class="bg-slate-900 text-slate-400 uppercase text-xs font-semibold tracking-wider">
+                                        <tr>
+                                            <th class="p-2 sm:p-4 border-b border-slate-700 text-xs sm:text-sm min-w-[80px]">Type</th>
+                                            <th class="p-2 sm:p-4 border-b border-slate-700 text-xs sm:text-sm min-w-[150px]">Name</th>
+                                            <th class="p-2 sm:p-4 border-b border-slate-700 text-xs sm:text-sm min-w-[100px]">Amount</th>
+                                            <th class="p-2 sm:p-4 border-b border-slate-700 text-xs sm:text-sm min-w-[120px]">Frequency</th>
+                                            <th class="p-2 sm:p-4 border-b border-slate-700 text-center text-xs sm:text-sm min-w-[80px]">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-700/50 text-xs sm:text-sm">
+                                        <!-- Dynamic Content -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- WiFi Vendo View -->
+            <div id="view-wifi-vendo" class="view max-w-full">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-6">
+                    <!-- Summary Cards -->
+                     <div class="card border-l-4 border-l-emerald-500">
+                        <div class="text-slate-400 text-xs sm:text-sm font-medium mb-2 uppercase tracking-wider">Total Wifi Income</div>
+                        <div class="text-xl sm:text-2xl font-bold text-emerald-400 break-all" id="wifi-total-income">0.00</div>
+                    </div>
+                     <div class="card border-l-4 border-l-red-500">
+                        <div class="text-slate-400 text-xs sm:text-sm font-medium mb-2 uppercase tracking-wider">Total Wifi Expenses</div>
+                        <div class="text-xl sm:text-2xl font-bold text-red-400 break-all" id="wifi-total-expense">0.00</div>
+                    </div>
+                    <div class="card border-l-4 border-l-blue-500">
+                        <div class="text-slate-400 text-xs sm:text-sm font-medium mb-2 uppercase tracking-wider">Wifi Net Profit</div>
+                        <div class="text-xl sm:text-2xl font-bold text-blue-400 break-all" id="wifi-net-profit">0.00</div>
+                    </div>
+                </div>
+
+                <div class="grid lg:grid-cols-3 gap-4 sm:gap-6 max-w-full">
+                    <div class="lg:col-span-1 min-w-0">
+                        <div class="card sticky top-6 max-w-full">
+                            <h3 class="text-lg sm:text-xl font-semibold text-white mb-6 flex items-center gap-2">
+                                <span class="bg-blue-600 w-1 h-6 rounded-full inline-block"></span>
+                                Add Vendo Entry
+                            </h3>
+                            <form id="wifi-vendo-form" class="space-y-3 sm:space-y-4 max-w-full">
+                                <input type="hidden" id="wifi-entry-id">
+                                <div class="form-group space-y-2">
+                                    <label class="text-xs sm:text-sm text-slate-400 flex justify-between items-center">
+                                        Machine Name
+                                        <button type="button" id="add-wifi-machine-btn" class="text-blue-400 hover:text-blue-300 text-xs transition-colors">
+                                            <i class="fas fa-plus-circle"></i> Add New
+                                        </button>
+                                    </label>
+                                    <div class="relative">
+                                        <select id="wifi-machine-id" required class="w-full max-w-full bg-slate-900 border border-slate-700 rounded-lg p-2 sm:p-3 text-sm sm:text-base text-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none appearance-none">
+                                            <!-- Populated by JS -->
+                                        </select>
+                                        <i class="fas fa-chevron-down absolute right-3 top-3 sm:top-4 text-slate-500 pointer-events-none text-xs"></i>
+                                    </div>
+                                </div>
+                                <div class="form-group space-y-2">
+                                    <label class="text-xs sm:text-sm text-slate-400">Transaction Date</label>
+                                    <input type="date" id="wifi-date" required class="w-full max-w-full bg-slate-900 border border-slate-700 rounded-lg p-2 sm:p-3 text-sm sm:text-base text-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none">
+                                </div>
+                                <div class="form-group space-y-2">
+                                    <label class="text-xs sm:text-sm text-slate-400">Income (Collections)</label>
+                                    <input type="number" id="wifi-income" min="0" step="0.01" placeholder="0.00" class="w-full max-w-full bg-slate-900 border border-slate-700 rounded-lg p-2 sm:p-3 text-sm sm:text-base text-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none placeholder-slate-600">
+                                </div>
+                                <div class="form-group space-y-2">
+                                    <label class="text-xs sm:text-sm text-slate-400">Expenses</label>
+                                    <input type="number" id="wifi-expense" min="0" step="0.01" placeholder="0.00" class="w-full max-w-full bg-slate-900 border border-slate-700 rounded-lg p-2 sm:p-3 text-sm sm:text-base text-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none placeholder-slate-600">
+                                </div>
+                                <button type="submit" class="btn btn-primary w-full mt-4 hover:shadow-lg hover:shadow-blue-500/20 transition-all text-sm sm:text-base">
+                                    <i class="fas fa-plus"></i> Add Entry
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <div class="lg:col-span-2 space-y-6 min-w-0 max-w-full">
+                        <!-- Chart -->
+                         <div class="card max-w-full">
+                            <div class="flex flex-col md:flex-row justify-between md:items-center mb-4 gap-4">
+                                <h3 class="text-lg font-semibold text-slate-300">Income vs Expenses Analysis</h3>
+                                <div class="flex gap-2">
+                                    <select id="wifi-filter-year" class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1 text-sm text-slate-200 outline-none focus:border-blue-500">
+                                        <!-- Js Populated -->
+                                    </select>
+                                    <select id="wifi-filter-month" class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1 text-sm text-slate-200 outline-none focus:border-blue-500">
+                                        <option value="all">Annual</option>
+                                        <option value="1">January</option>
+                                        <option value="2">February</option>
+                                        <option value="3">March</option>
+                                        <option value="4">April</option>
+                                        <option value="5">May</option>
+                                        <option value="6">June</option>
+                                        <option value="7">July</option>
+                                        <option value="8">August</option>
+                                        <option value="9">September</option>
+                                        <option value="10">October</option>
+                                        <option value="11">November</option>
+                                        <option value="12">December</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div style="height: 350px; position: relative;">
+                                <canvas id="wifi-chart"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Table -->
+                        <div class="card min-h-[300px]">
+                            <h3 class="text-lg sm:text-xl font-semibold text-white mb-6 flex items-center gap-2">
+                                <span class="bg-indigo-500 w-1 h-6 rounded-full inline-block"></span>
+                                Vendo History
+                            </h3>
+                            <div class="overflow-x-auto rounded-lg border border-slate-700/50 -mx-2 sm:mx-0">
+                                <table id="wifi-table" class="w-full text-left border-collapse min-w-[650px]">
+                                    <thead class="bg-slate-900 text-slate-400 uppercase text-xs font-semibold tracking-wider">
+                                        <tr>
+                                            <th class="p-2 sm:p-4 border-b border-slate-700 text-xs sm:text-sm min-w-[100px]">Date</th>
+                                            <th class="p-2 sm:p-4 border-b border-slate-700 text-xs sm:text-sm min-w-[120px]">Machine</th>
+                                            <th class="p-2 sm:p-4 border-b border-slate-700 text-emerald-500 text-xs sm:text-sm min-w-[100px]">Income</th>
+                                            <th class="p-2 sm:p-4 border-b border-slate-700 text-red-500 text-xs sm:text-sm min-w-[100px]">Expenses</th>
+                                            <th class="p-2 sm:p-4 border-b border-slate-700 text-xs sm:text-sm min-w-[100px]">Net</th>
+                                            <th class="p-2 sm:p-4 border-b border-slate-700 text-center text-xs sm:text-sm min-w-[80px]">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-700/50 text-sm">
+                                        <!-- Dynamic Content -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings View -->
+            <div id="view-settings" class="view">
+                <div class="max-w-2xl mx-auto w-full space-y-6">
+                    <!-- Global Configuration Card -->
+                    <div class="card">
+                        <h3 class="text-xl font-semibold text-white mb-6 pb-4 border-b border-slate-700">Global Configuration</h3>
+                        <form id="settings-form" class="space-y-6">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div class="space-y-2">
+                                    <label class="text-sm text-slate-400">Company Name</label>
+                                    <input type="text" id="set-company-name" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-slate-200 focus:border-blue-500 outline-none">
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-sm text-slate-400">Currency Symbol</label>
+                                    <input type="text" id="set-currency" maxlength="5" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-slate-200 focus:border-blue-500 outline-none">
+                                </div>
+                            </div>
+                            
+                            <div class="space-y-2">
+                                <label class="text-sm text-slate-400">Report Title</label>
+                                <input type="text" id="set-report-title" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-slate-200 focus:border-blue-500 outline-none">
+                            </div>
+                            
+                            <div class="space-y-2">
+                                <label class="text-sm text-slate-400">Logo URL</label>
+                                <div class="flex gap-2">
+                                    <input type="text" id="set-logo-url" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-slate-200 focus:border-blue-500 outline-none">
+                                    <div class="w-12 h-12 rounded bg-slate-800 border border-slate-700 flex items-center justify-center overflow-hidden shrink-0">
+                                        <i class="fas fa-image text-slate-600"></i>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="pt-4 flex items-center justify-between">
+                                <button type="button" id="download-settings" class="btn btn-secondary text-xs">
+                                    <i class="fas fa-save"></i> Backup Settings JSON
+                                </button>
+                                <button type="submit" class="btn btn-primary">
+                                    Save Changes
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Change Password Card -->
+                    <div class="card">
+                        <h3 class="text-xl font-semibold text-white mb-6 pb-4 border-b border-slate-700 flex items-center gap-3">
+                            <i class="fas fa-key text-blue-500"></i>
+                            Change Password
+                        </h3>
+                        
+                        <!-- Alert Messages for Password Change -->
+                        <div id="password-alert-container" class="mb-6 hidden">
+                            <div id="password-alert-message" class="px-4 py-3 rounded-lg flex items-center gap-3">
+                                <i class="fas fa-info-circle"></i>
+                                <span id="password-alert-text"></span>
+                            </div>
+                        </div>
+
+                        <form id="change-password-form" class="space-y-6">
+                            <div class="space-y-2">
+                                <label class="text-sm text-slate-400">Current Password</label>
+                                <div class="relative">
+                                    <input 
+                                        type="password" 
+                                        id="current-password" 
+                                        required
+                                        autocomplete="current-password"
+                                        class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 pr-10 text-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none"
+                                        placeholder="Enter your current password"
+                                    >
+                                    <button 
+                                        type="button" 
+                                        class="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-200 transition"
+                                        onclick="togglePasswordVisibility('current-password')"
+                                    >
+                                        <i class="fas fa-eye text-sm"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="space-y-2">
+                                <label class="text-sm text-slate-400">New Password</label>
+                                <div class="relative">
+                                    <input 
+                                        type="password" 
+                                        id="new-password" 
+                                        required
+                                        autocomplete="new-password"
+                                        class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 pr-10 text-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none"
+                                        placeholder="Enter new password"
+                                    >
+                                    <button 
+                                        type="button" 
+                                        class="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-200 transition"
+                                        onclick="togglePasswordVisibility('new-password')"
+                                    >
+                                        <i class="fas fa-eye text-sm"></i>
+                                    </button>
+                                </div>
+                                <p class="text-xs text-slate-500 mt-1">
+                                    <i class="fas fa-info-circle mr-1"></i>
+                                    Must be at least 8 characters with uppercase, lowercase, number, and special character
+                                </p>
+                            </div>
+
+                            <div class="space-y-2">
+                                <label class="text-sm text-slate-400">Confirm New Password</label>
+                                <div class="relative">
+                                    <input 
+                                        type="password" 
+                                        id="confirm-password" 
+                                        required
+                                        autocomplete="new-password"
+                                        class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 pr-10 text-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none"
+                                        placeholder="Confirm new password"
+                                    >
+                                    <button 
+                                        type="button" 
+                                        class="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-200 transition"
+                                        onclick="togglePasswordVisibility('confirm-password')"
+                                    >
+                                        <i class="fas fa-eye text-sm"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="pt-4">
+                                <button type="submit" class="btn btn-primary w-full" id="change-password-btn">
+                                    <i class="fas fa-lock"></i> Update Password
+                                </button>
+                            </div>
+                        </form>
+
+                        <!-- Security Tips -->
+                        <div class="mt-6 p-4 bg-slate-900/50 rounded-lg border border-slate-700/50">
+                            <h4 class="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
+                                <i class="fas fa-shield-alt text-green-500"></i>
+                                Password Security Tips
+                            </h4>
+                            <ul class="text-xs text-slate-400 space-y-2">
+                                <li class="flex items-start gap-2">
+                                    <i class="fas fa-check text-green-500 mt-0.5"></i>
+                                    <span>Use a unique password that you don't use for other accounts</span>
+                                </li>
+                                <li class="flex items-start gap-2">
+                                    <i class="fas fa-check text-green-500 mt-0.5"></i>
+                                    <span>Include a mix of uppercase, lowercase, numbers, and special characters</span>
+                                </li>
+                                <li class="flex items-start gap-2">
+                                    <i class="fas fa-check text-green-500 mt-0.5"></i>
+                                    <span>Avoid common words, names, or easily guessable information</span>
+                                </li>
+                                <li class="flex items-start gap-2">
+                                    <i class="fas fa-check text-green-500 mt-0.5"></i>
+                                    <span>Consider using a password manager to generate and store strong passwords</span>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <script src="js/script.js"></script>
+</body>
+</html>
